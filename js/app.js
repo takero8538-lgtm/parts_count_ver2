@@ -6,7 +6,6 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// HTML要素参照（modelSelectは廃止したので除外）
 const imageInput = document.getElementById('imageInput');
 const runBtn = document.getElementById('runBtn');
 const canvas = document.getElementById('canvas');
@@ -16,25 +15,34 @@ const startCameraBtn = document.getElementById('startCameraBtn');
 const captureBtn = document.getElementById('captureBtn');
 const video = document.getElementById('video');
 
-let models = {};  // 複数モデルここに格納
+let models = {};       // { モデル名: tf.GraphModel }
 let imgElement = null;
-let stream = null;
 
-// 画像/カメラ周りは既存のまま
-// --- imageInput, startCameraBtn, captureBtn, stopCamera() など ---
+// models_list.json からモデルの一覧とパスを動的読み込みする関数
+async function loadModelList() {
+  try {
+    const res = await fetch('models_list.json');
+    const modelList = await res.json();
 
-// 単一モデル読み込みを複数モデル読み込みに変更
+    if (!Array.isArray(modelList)) {
+      throw new Error("models_list.json の内容が配列ではありません");
+    }
+    return modelList;
+  } catch (error) {
+    console.error("モデルリストの読み込みに失敗:", error);
+    alert("モデルリストの読み込みに失敗しました");
+    return [];
+  }
+}
+
+// 複数モデルをまとめて読み込む関数
 async function loadAllModels() {
-  const modelList = [
-    { name: 'モデルA', path: 'models/modelA/' },
-    { name: 'モデルB', path: 'models/modelB/' },
-    { name: 'モデルC', path: 'models/modelC/' },
-    // 必要に応じてモデルを増やす
-  ];
+  const modelList = await loadModelList();
 
   resultDiv.textContent = 'モデルを読み込み中...';
   runBtn.disabled = true;
 
+  models = {};
   for (const m of modelList) {
     try {
       const model = await tf.loadGraphModel(m.path + 'model.json');
@@ -54,7 +62,7 @@ async function loadAllModels() {
   }
 }
 
-// 既存のrunInferenceをモデル指定版に変更して再利用
+// 各モデルで推論して結果を描画（ラベル表示なし、矩形だけ）
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
@@ -97,7 +105,6 @@ async function runInferenceWithModel(model, img, color) {
 
     const boxes = [];
     const scores = [];
-    const classIds = [];
 
     const confThreshold = 0.1;
 
@@ -110,12 +117,10 @@ async function runInferenceWithModel(model, img, color) {
       const h = data[offset + 3];
 
       let maxScore = 0;
-      let classId = -1;
       for (let c = 0; c < numClasses; c++) {
         const score = data[offset + 4 + c];
         if (score > maxScore) {
           maxScore = score;
-          classId = c;
         }
       }
 
@@ -127,23 +132,16 @@ async function runInferenceWithModel(model, img, color) {
 
         boxes.push([ymin, xmin, ymax, xmax]);
         scores.push(maxScore);
-        classIds.push(classId);
       }
     }
 
     let count = boxes.length;
-    let maxConfidence = scores.length > 0 ? Math.max(...scores) : 0;
 
-    // 描画
     ctx.lineWidth = 2;
     ctx.strokeStyle = color;
-    ctx.font = '16px Arial';
-    ctx.fillStyle = color;
 
     for (let i = 0; i < count; i++) {
       const [ymin, xmin, ymax, xmax] = boxes[i];
-      const score = scores[i];
-      const classId = classIds[i];
 
       const realXmin = (xmin - padLeft) / scale;
       const realYmin = (ymin - padTop) / scale;
@@ -155,8 +153,7 @@ async function runInferenceWithModel(model, img, color) {
 
       if (boxWidth > 0 && boxHeight > 0) {
         ctx.strokeRect(realXmin, realYmin, boxWidth, boxHeight);
-        // ラベル表示も追加可能
-        // ctx.fillText(`ID:${classId} ${(score * 100).toFixed(1)}%`, realXmin + 5, realYmin + 18);
+        // ラベル表示はしない
       }
     }
 
@@ -165,28 +162,29 @@ async function runInferenceWithModel(model, img, color) {
     rawOutput.dispose();
     tf.dispose([inputTensor, resized, padded, expanded, normalized]);
 
-    return { count, maxConfidence };
+    return { count };
   } catch (error) {
     console.error(error);
     tf.dispose([inputTensor, resized, padded, expanded, normalized]);
-    return { count: 0, maxConfidence: 0, error: error.message };
+    return { count: 0, error: error.message };
   }
 }
 
-// すべてのモデルで推論し結果をまとめて表示
+// 複数モデルで一括推論し、検出が1件以上のモデルのみ検出数を表示
 async function runInferenceAllModels() {
   if (!imgElement || Object.keys(models).length === 0) {
     alert('画像またはモデルがありません。');
     return;
   }
 
+  canvas.width = imgElement.width;
+  canvas.height = imgElement.height;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(imgElement, 0, 0);
 
-  const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan']; // モデルごとの色割当
+  const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan'];
 
   let resultText = '';
-
   let idx = 0;
   for (const [name, model] of Object.entries(models)) {
     const color = colors[idx % colors.length];
@@ -194,10 +192,14 @@ async function runInferenceAllModels() {
 
     if (res.error) {
       resultText += `${name}: エラー (${res.error})\n`;
-    } else {
-      resultText += `${name}: 検出数 ${res.count}, 最高信頼度 ${(res.maxConfidence * 100).toFixed(1)}%\n`;
+    } else if (res.count > 0) {
+      resultText += `${name}: 検出数 ${res.count}\n`;
     }
     idx++;
+  }
+
+  if (resultText === '') {
+    resultText = '検出結果なし';
   }
 
   resultDiv.textContent = resultText;
@@ -207,7 +209,7 @@ imageInput.addEventListener('change', (evt) => {
   const file = evt.target.files[0];
   if (!file) return;
 
-  stopCamera(); // カメラ停止
+  stopCamera();
 
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -228,6 +230,6 @@ imageInput.addEventListener('change', (evt) => {
 
 runBtn.addEventListener('click', runInferenceAllModels);
 
-// 他のcamera関連イベント（startCameraBtn, captureBtn, stopCamera）は省略せずにこれまでと同様に使用
+// startCameraBtn, captureBtn, stopCameraなどのカメラ関連処理は既存コード利用
 
 loadAllModels();
