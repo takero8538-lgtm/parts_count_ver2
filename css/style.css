@@ -1,0 +1,41 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  background-color: #f8f8f8;
+  color: #333;
+}
+
+h1 {
+  color: #00539CFF;
+  margin-bottom: 20px;
+}
+
+label {
+  font-weight: bold;
+}
+
+select, input[type="file"], button {
+  font-size: 1rem;
+  padding: 6px 10px;
+  margin-right: 10px;
+}
+
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+canvas {
+  border: 1px solid #ccc;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin-top: 20px;
+}
+
+#result {
+  margin-top: 15px;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #00539CFF;
+}
