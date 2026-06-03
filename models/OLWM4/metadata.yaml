@@ -1,0 +1,23 @@
+description: Ultralytics best model trained on C:\Users\tsakashita.DENSHI_NT\Desktop\count\260513\configs\OLWM4.yaml
+author: Ultralytics
+date: '2026-06-02T03:05:21.382251'
+version: 8.4.60
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: OLWM4
+args:
+  data: null
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: false
+  nms: false
+channels: 3
+end2end: false
