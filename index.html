@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>ブラウザ物体検出デモ</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#007ACC" />
+  <!-- TensorFlow.jsをローカルから読み込み -->
+  <script src="js/tf.min.js"></script>
+</head>
+<body>
+  <h1>物体検出デモ（ブラウザ）</h1>
+
+  <!-- 画像の入力方法（ファイル選択 or カメラ起動） -->
+  <div style="margin-bottom: 15px;">
+    <!-- 1. フォルダから画像を選ぶボタン -->
+    <input type="file" id="imageInput" accept="image/*" />
+    
+    <!-- 2. その場で写真を撮るためのボタン -->
+    <button id="startCameraBtn">📸 カメラを起動</button>
+    <button id="captureBtn" disabled>🎯 写真を撮る</button>
+  </div>
+
+  <!-- 推論実行ボタン -->
+  <button id="runBtn" disabled style="padding: 5px 15px; font-weight: bold;">推論開始</button>
+
+  <br /><br />
+
+  <!-- カメラのリアルタイム映像を確認する裏画面 -->
+  <video id="video" autoplay playsinline style="display: none; width: 100%; max-width: 640px; background: #000; margin-bottom: 15px;"></video>
+
+  <!-- 画像と推論結果表示キャンバス -->
+  <canvas id="canvas"></canvas>
+
+  <!-- 複数モデルの検出結果を一覧表示 -->
+  <div id="result"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
