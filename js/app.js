@@ -1,6 +1,6 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/parts_count_ver2/service-worker.js')
+    navigator.serviceWorker.register('/service-worker.js')
       .then(reg => console.log('Service Worker 登録成功:', reg))
       .catch(err => console.error('Service Worker 登録失敗:', err));
   });
@@ -15,58 +15,127 @@ const startCameraBtn = document.getElementById('startCameraBtn');
 const captureBtn = document.getElementById('captureBtn');
 const video = document.getElementById('video');
 
-let models = {};       // { モデル名: tf.GraphModel }
+const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan'];
+
+let models = {};       // { modelName: tf.GraphModel }
 let imgElement = null;
-let stream = null;     // カメラ映像のストリーム保持用
+let stream = null;
 
-// models_list.json からモデルの一覧とパスを動的読み込みする関数
-async function loadModelList() {
-  try {
-    const res = await fetch('models_list.json');
-    const modelList = await res.json();
-
-    if (!Array.isArray(modelList)) {
-      throw new Error("models_list.json の内容が配列ではありません");
-    }
-    return modelList;
-  } catch (error) {
-    console.error("モデルリストの読み込みに失敗:", error);
-    alert("モデルリストの読み込みに失敗しました");
-    return [];
-  }
-}
-
-// 複数モデルをまとめて読み込む関数
-async function loadAllModels() {
-  const modelList = await loadModelList();
-
+// モデルリストを読み込み＆複数モデルの読み込み
+async function loadModels() {
   resultDiv.textContent = 'モデルを読み込み中...';
   runBtn.disabled = true;
 
-  models = {};
-  for (const m of modelList) {
-    try {
-      const model = await tf.loadGraphModel(m.path + 'model.json');
-      models[m.name] = model;
-      console.log(`${m.name} 読み込み成功`);
-    } catch (e) {
-      // フォルダやファイルが無い場合はスキップして続行
-      console.warn(`${m.name} の読み込みをスキップ（${e.message}）`);
+  try {
+    const res = await fetch('models_list.json');
+    const modelList = await res.json();
+    models = {};
+    let readCount = 0;
+
+    for (const m of modelList) {
+      try {
+        const model = await tf.loadGraphModel(m.path + 'model.json');
+        models[m.name] = model;
+        readCount++;
+        console.log(`${m.name} 読み込み成功`);
+      } catch (e) {
+        console.warn(`${m.name} 読み込み失敗: ${e.message}`);
+      }
     }
+
+    if (readCount === 0) {
+      resultDiv.textContent = 'モデルが１つも読み込めませんでした。';
+    } else {
+      resultDiv.textContent = `モデル ${readCount} 件読み込み完了。画像を選択または撮影してください。`;
+    }
+  } catch (error) {
+    resultDiv.textContent = 'モデル一覧の読み込みに失敗しました。';
+    console.error(error);
   }
 
-  const loadedCount = Object.keys(models).length;
-  if (loadedCount === 0) {
-    resultDiv.textContent = '【エラー】すべてのモデルの読み込みに失敗しました。';
-    runBtn.disabled = true;
-    alert('モデルが１つも読み込めませんでした。環境を確認してください。');
-  } else {
-    resultDiv.textContent = `モデル${loadedCount}件が読み込み完了しました。画像を選択または撮影してください。`;
-    runBtn.disabled = !(imgElement != null);
-  }
+  runBtn.disabled = !(imgElement && Object.keys(models).length > 0);
 }
 
-// 各モデルで推論して結果を描画（NMS適用済み、ラベルなし）
+// 画像ファイル読み込み
+imageInput.addEventListener('change', (evt) => {
+  const file = evt.target.files[0];
+  if (!file) return;
+
+  stopCamera();
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      imgElement = img;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      runBtn.disabled = !(Object.keys(models).length > 0 && imgElement);
+      resultDiv.textContent = '';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// カメラ起動
+startCameraBtn.addEventListener('click', async () => {
+  if (stream) {
+    stopCamera();
+    return;
+  }
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
+    });
+    video.srcObject = stream;
+    video.style.display = 'block';
+    startCameraBtn.textContent = '❌ カメラを閉じる';
+    captureBtn.disabled = false;
+    resultDiv.textContent = 'カメラが起動しました。対象を映して「写真を撮る」を押してください。';
+  } catch (error) {
+    console.error('カメラ起動エラー:', error);
+    resultDiv.textContent = 'カメラの起動に失敗しました。アクセス権限を確認してください。';
+  }
+});
+
+// カメラ停止
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+  video.srcObject = null;
+  video.style.display = 'none';
+  startCameraBtn.textContent = '📸 カメラを起動';
+  captureBtn.disabled = true;
+}
+
+// 写真撮影
+captureBtn.addEventListener('click', () => {
+  if (!stream) return;
+
+  const vW = video.videoWidth;
+  const vH = video.videoHeight;
+  canvas.width = vW;
+  canvas.height = vH;
+  ctx.drawImage(video, 0, 0, vW, vH);
+
+  const img = new Image();
+  img.src = canvas.toDataURL('image/jpeg');
+  img.onload = () => {
+    imgElement = img;
+    runBtn.disabled = !(Object.keys(models).length > 0 && imgElement);
+    resultDiv.textContent = '写真を撮影しました。「推論開始」を押してください。';
+    stopCamera();
+  };
+});
+
+// 単一モデルに対して推論＋NMS処理し描画
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
@@ -109,6 +178,7 @@ async function runInferenceWithModel(model, img, color) {
 
     const boxes = [];
     const scores = [];
+    const classIds = [];
 
     const confThreshold = 0.1;
 
@@ -121,10 +191,12 @@ async function runInferenceWithModel(model, img, color) {
       const h = data[offset + 3];
 
       let maxScore = 0;
+      let classId = -1;
       for (let c = 0; c < numClasses; c++) {
         const score = data[offset + 4 + c];
         if (score > maxScore) {
           maxScore = score;
+          classId = c;
         }
       }
 
@@ -136,10 +208,11 @@ async function runInferenceWithModel(model, img, color) {
 
         boxes.push([ymin, xmin, ymax, xmax]);
         scores.push(maxScore);
+        classIds.push(classId);
       }
     }
 
-    // 非最大抑制（NMS）用にboxesを[ xmin, ymin, width, height ]に変換
+    // NMS用にbbox形式変換 [xmin, ymin, width, height]
     const boxesForNMS = boxes.map(([ymin, xmin, ymax, xmax]) => {
       return [xmin, ymin, xmax - xmin, ymax - ymin];
     });
@@ -147,19 +220,30 @@ async function runInferenceWithModel(model, img, color) {
     const boxesTensor = tf.tensor2d(boxesForNMS);
     const scoresTensor = tf.tensor1d(scores);
 
-    const maxOutputSize = 50;    // 最大検出ボックス数
-    const iouThreshold = 0.45;   // IOUの閾値
+    const maxOutputSize = 100;
+    const iouThreshold = 0.45;
+
     const selectedIndices = await tf.image.nonMaxSuppressionAsync(
-      boxesTensor, scoresTensor, maxOutputSize, iouThreshold, confThreshold
+      boxesTensor,
+      scoresTensor,
+      maxOutputSize,
+      iouThreshold,
+      confThreshold
     );
 
     const indices = await selectedIndices.data();
 
     ctx.lineWidth = 2;
     ctx.strokeStyle = color;
+    ctx.font = '16px Arial';
+    ctx.fillStyle = color;
+
+    const results = [];
 
     for (const i of indices) {
       const [ymin, xmin, ymax, xmax] = boxes[i];
+      const score = scores[i];
+      const classId = classIds[i];
 
       const realXmin = (xmin - padLeft) / scale;
       const realYmin = (ymin - padTop) / scale;
@@ -171,29 +255,31 @@ async function runInferenceWithModel(model, img, color) {
 
       if (boxWidth > 0 && boxHeight > 0) {
         ctx.strokeRect(realXmin, realYmin, boxWidth, boxHeight);
+        // 必要ならラベルも描画可能
+        // ctx.fillText(`${classId} ${(score*100).toFixed(1)}%`, realXmin + 5, realYmin + 18);
       }
-    }
 
-    const count = indices.length;
+      results.push({ classId, score });
+    }
 
     boxesTensor.dispose();
     scoresTensor.dispose();
     selectedIndices.dispose();
-
     squeezed.dispose();
     transposed.dispose();
     rawOutput.dispose();
     tf.dispose([inputTensor, resized, padded, expanded, normalized]);
 
-    return { count };
+    return results.length;
+
   } catch (error) {
-    console.error(error);
+    console.error('推論エラー', error);
     tf.dispose([inputTensor, resized, padded, expanded, normalized]);
-    return { count: 0, error: error.message };
+    return 0;
   }
 }
 
-// 複数モデルで一括推論し、検出が1件以上のモデルのみ検出数を表示
+// 複数モデル一括推論のメイン処理
 async function runInferenceAllModels() {
   if (!imgElement || Object.keys(models).length === 0) {
     alert('画像またはモデルがありません。');
@@ -205,114 +291,23 @@ async function runInferenceAllModels() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(imgElement, 0, 0);
 
-  const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan'];
-
-  let resultText = '';
   let idx = 0;
+  let totalDetections = 0;
+  let outputText = '';
+
   for (const [name, model] of Object.entries(models)) {
     const color = colors[idx % colors.length];
-    const res = await runInferenceWithModel(model, imgElement, color);
-
-    if (res.error) {
-      resultText += `${name}: エラー (${res.error})\n`;
-    } else if (res.count > 0) {
-      resultText += `${name}: 検出数 ${res.count}\n`;
-    }
+    const count = await runInferenceWithModel(model, imgElement, color);
+    outputText += `${name} 検出数: ${count}\n`;
+    totalDetections += count;
     idx++;
   }
 
-  if (resultText === '') {
-    resultText = '検出結果なし';
-  }
+  if (totalDetections === 0) outputText = '検出結果なし';
 
-  resultDiv.textContent = resultText;
+  resultDiv.textContent = outputText;
 }
 
-// カメラ停止処理
-function stopCamera() {
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-  video.srcObject = null;
-  video.style.display = 'none';
-  startCameraBtn.textContent = '📸 カメラを起動';
-  captureBtn.disabled = true;
-}
-
-// ファイル選択イベント
-imageInput.addEventListener('change', (evt) => {
-  const file = evt.target.files[0];
-  if (!file) return;
-
-  stopCamera();
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = new Image();
-    img.onload = () => {
-      imgElement = img;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-
-      runBtn.disabled = !(Object.keys(models).length > 0 && imgElement != null);
-      resultDiv.textContent = '';
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-// カメラ起動ボタン
-startCameraBtn.addEventListener('click', async () => {
-  if (stream) {
-    stopCamera();
-    return;
-  }
-
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }},
-      audio: false,
-    });
-    video.srcObject = stream;
-    video.style.display = 'block';
-    startCameraBtn.textContent = '❌ カメラを閉じる';
-    captureBtn.disabled = false;
-    resultDiv.textContent = 'カメラが起動しました。対象を映して「写真を撮る」を押してください。';
-  } catch (error) {
-    console.error('カメラ起動エラー:', error);
-    resultDiv.textContent = 'カメラの起動に失敗しました。アクセス権限を確認してください。';
-  }
-});
-
-// 写真撮影ボタン
-captureBtn.addEventListener('click', () => {
-  if (!stream) return;
-
-  const videoWidth = video.videoWidth;
-  const videoHeight = video.videoHeight;
-
-  canvas.width = videoWidth;
-  canvas.height = videoHeight;
-
-  ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
-
-  const img = new Image();
-  img.src = canvas.toDataURL('image/jpeg');
-  img.onload = () => {
-    imgElement = img;
-    runBtn.disabled = !(Object.keys(models).length > 0 && imgElement != null);
-    resultDiv.textContent = '写真を撮影しました。「推論開始」を押してください。';
-
-    stopCamera();
-  };
-});
-
-// 推論実行ボタン
 runBtn.addEventListener('click', runInferenceAllModels);
 
-// ページ読み込み時にモデル一括読み込み開始
-loadAllModels();
+loadModels();
