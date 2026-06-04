@@ -270,16 +270,21 @@ imageInput.addEventListener('change', (evt) => {
 });
 
 // カメラ起動／停止ボタン
+// カメラ起動／停止ボタン
 startCameraBtn.addEventListener('click', async () => {
   if (stream) {
     stopCamera();
     return;
   }
 
-  // 【修正箇所】以前の選択画像をクリアしてCanvasを真っさらにする
+  // 【修正】以前の選択画像・ファイル選択状態をリセット
   imgElement = null;
   runBtn.disabled = true;
-  imageInput.value = ''; // ファイル選択の状態もリセット
+  imageInput.value = ''; 
+
+  // 【修正】Canvasをクリアした上で、サイズを0にして完全に消す
+  canvas.width = 0;
+  canvas.height = 0;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   try {
@@ -297,7 +302,6 @@ startCameraBtn.addEventListener('click', async () => {
     resultDiv.textContent = 'カメラの起動に失敗しました。アクセス権限を確認してください。';
   }
 });
-
 // 写真撮影ボタン
 captureBtn.addEventListener('click', () => {
   if (!stream) return;
