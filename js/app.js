@@ -49,7 +49,8 @@ async function loadAllModels() {
       models[m.name] = model;
       console.log(`${m.name} 読み込み成功`);
     } catch (e) {
-      console.error(`${m.name} の読み込み失敗`, e);
+      // フォルダやファイルが無い場合はスキップして続行
+      console.warn(`${m.name} の読み込みをスキップ（${e.message}）`);
     }
   }
 
@@ -58,10 +59,9 @@ async function loadAllModels() {
     resultDiv.textContent = `モデル${loadedCount}件が読み込み完了しました。画像を選択または撮影してください。`;
     runBtn.disabled = !(imgElement != null);
   } else {
-    resultDiv.textContent = 'モデルの読み込みに失敗しました';
+    resultDiv.textContent = 'モデルの読み込みに成功したものがありませんでした';
   }
 }
-
 // 各モデルで推論して結果を描画（ラベル表示なし、矩形だけ）
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
