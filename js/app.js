@@ -17,6 +17,7 @@ const video = document.getElementById('video');
 
 let models = {};       // { モデル名: tf.GraphModel }
 let imgElement = null;
+let stream = null;     // カメラ映像のストリーム保持用
 
 // models_list.json からモデルの一覧とパスを動的読み込みする関数
 async function loadModelList() {
@@ -55,14 +56,17 @@ async function loadAllModels() {
   }
 
   const loadedCount = Object.keys(models).length;
-  if (loadedCount > 0) {
+  if (loadedCount === 0) {
+    resultDiv.textContent = '【エラー】すべてのモデルの読み込みに失敗しました。';
+    runBtn.disabled = true;
+    alert('モデルが１つも読み込めませんでした。環境を確認してください。');
+  } else {
     resultDiv.textContent = `モデル${loadedCount}件が読み込み完了しました。画像を選択または撮影してください。`;
     runBtn.disabled = !(imgElement != null);
-  } else {
-    resultDiv.textContent = 'モデルの読み込みに成功したものがありませんでした';
   }
 }
-// 各モデルで推論して結果を描画（ラベル表示なし、矩形だけ）
+
+// 各モデルで推論して結果を描画（矩形のみ、ラベルなし）
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
@@ -153,7 +157,6 @@ async function runInferenceWithModel(model, img, color) {
 
       if (boxWidth > 0 && boxHeight > 0) {
         ctx.strokeRect(realXmin, realYmin, boxWidth, boxHeight);
-        // ラベル表示はしない
       }
     }
 
@@ -205,6 +208,19 @@ async function runInferenceAllModels() {
   resultDiv.textContent = resultText;
 }
 
+// カメラ停止処理
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+  video.srcObject = null;
+  video.style.display = 'none';
+  startCameraBtn.textContent = '📸 カメラを起動';
+  captureBtn.disabled = true;
+}
+
+// ファイル選択イベント
 imageInput.addEventListener('change', (evt) => {
   const file = evt.target.files[0];
   if (!file) return;
@@ -220,6 +236,7 @@ imageInput.addEventListener('change', (evt) => {
       canvas.height = img.height;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
+
       runBtn.disabled = !(Object.keys(models).length > 0 && imgElement != null);
       resultDiv.textContent = '';
     };
@@ -228,8 +245,54 @@ imageInput.addEventListener('change', (evt) => {
   reader.readAsDataURL(file);
 });
 
+// カメラ起動ボタン
+startCameraBtn.addEventListener('click', async () => {
+  if (stream) {
+    stopCamera();
+    return;
+  }
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }},
+      audio: false,
+    });
+    video.srcObject = stream;
+    video.style.display = 'block';
+    startCameraBtn.textContent = '❌ カメラを閉じる';
+    captureBtn.disabled = false;
+    resultDiv.textContent = 'カメラが起動しました。対象を映して「写真を撮る」を押してください。';
+  } catch (error) {
+    console.error('カメラ起動エラー:', error);
+    resultDiv.textContent = 'カメラの起動に失敗しました。アクセス権限を確認してください。';
+  }
+});
+
+// 写真撮影ボタン
+captureBtn.addEventListener('click', () => {
+  if (!stream) return;
+
+  const videoWidth = video.videoWidth;
+  const videoHeight = video.videoHeight;
+
+  canvas.width = videoWidth;
+  canvas.height = videoHeight;
+
+  ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+  const img = new Image();
+  img.src = canvas.toDataURL('image/jpeg');
+  img.onload = () => {
+    imgElement = img;
+    runBtn.disabled = !(Object.keys(models).length > 0 && imgElement != null);
+    resultDiv.textContent = '写真を撮影しました。「推論開始」を押してください。';
+
+    stopCamera();
+  };
+});
+
+// 推論実行ボタン
 runBtn.addEventListener('click', runInferenceAllModels);
 
-// startCameraBtn, captureBtn, stopCameraなどのカメラ関連処理は既存コード利用
-
+// ページ読み込み時にモデル一括読み込み開始
 loadAllModels();
