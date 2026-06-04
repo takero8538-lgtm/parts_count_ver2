@@ -19,7 +19,7 @@ const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan'];
 
 let models = {};       // { モデル名: tf.GraphModel }
 let imgElement = null;
-let stream = null;     // カメラ映像ストリーム
+let stream = null;     // カメラ映像ストリーム保持用
 
 // 共通：画像設定後のCanvas初期化＆runBtn有効化更新
 function setImageElement(img) {
@@ -32,7 +32,7 @@ function setImageElement(img) {
   resultDiv.textContent = '';
 }
 
-// モデルリスト読み込み
+// models_list.json からモデルリストを取得
 async function loadModelList() {
   try {
     const res = await fetch('models_list.json');
@@ -49,7 +49,7 @@ async function loadModelList() {
   }
 }
 
-// 複数モデルをまとめて読み込み
+// 複数モデルを一括読み込み
 async function loadAllModels() {
   const modelList = await loadModelList();
 
@@ -78,7 +78,7 @@ async function loadAllModels() {
   }
 }
 
-// 単一モデルで推論＆結果描画（矩形のみ）
+// 単一モデル推論＆NMS処理後の描画
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
@@ -124,6 +124,7 @@ async function runInferenceWithModel(model, img, color) {
 
     const confThreshold = 0.1;
 
+    // 推論結果からボックスとスコアを抽出
     for (let i = 0; i < numBoxes; i++) {
       const offset = i * numAttributes;
 
@@ -145,18 +146,38 @@ async function runInferenceWithModel(model, img, color) {
         const xmin = cx - w / 2;
         const ymax = cy + h / 2;
         const xmax = cx + w / 2;
-
         boxes.push([ymin, xmin, ymax, xmax]);
         scores.push(maxScore);
       }
     }
 
-    let count = boxes.length;
+    // NMS用に boxes → [xmin, ymin, width, height] に変換
+    const boxesForNMS = boxes.map(([ymin, xmin, ymax, xmax]) => {
+      return [xmin, ymin, xmax - xmin, ymax - ymin];
+    });
+
+    const boxesTensor = tf.tensor2d(boxesForNMS);
+    const scoresTensor = tf.tensor1d(scores);
+
+    const maxOutputSize = 100;
+    const iouThreshold = 0.45;
+
+    // NMS実行
+    const selectedIndices = await tf.image.nonMaxSuppressionAsync(
+      boxesTensor,
+      scoresTensor,
+      maxOutputSize,
+      iouThreshold,
+      confThreshold
+    );
+
+    const indices = await selectedIndices.data();
 
     ctx.lineWidth = 2;
     ctx.strokeStyle = color;
 
-    for (let i = 0; i < count; i++) {
+    // NMSで選ばれたボックスのみ描画
+    for (const i of indices) {
       const [ymin, xmin, ymax, xmax] = boxes[i];
 
       const realXmin = (xmin - padLeft) / scale;
@@ -172,12 +193,16 @@ async function runInferenceWithModel(model, img, color) {
       }
     }
 
+    // 後片付け
+    boxesTensor.dispose();
+    scoresTensor.dispose();
+    selectedIndices.dispose();
     squeezed.dispose();
     transposed.dispose();
     rawOutput.dispose();
     tf.dispose([inputTensor, resized, padded, expanded, normalized]);
 
-    return { count };
+    return { count: indices.length };
   } catch (error) {
     console.error(error);
     tf.dispose([inputTensor, resized, padded, expanded, normalized]);
@@ -185,7 +210,7 @@ async function runInferenceWithModel(model, img, color) {
   }
 }
 
-// 複数モデル一括推論、検出数が1件以上のモデルのみ結果表示
+// 複数モデルを直列で推論し、検出数が1件以上のモデルのみ表示
 async function runInferenceAllModels() {
   if (!imgElement || Object.keys(models).length === 0) {
     alert('画像またはモデルがありません。');
@@ -218,7 +243,7 @@ async function runInferenceAllModels() {
   resultDiv.textContent = resultText;
 }
 
-// カメラ停止
+// カメラ停止処理
 function stopCamera() {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
@@ -230,7 +255,7 @@ function stopCamera() {
   captureBtn.disabled = true;
 }
 
-// ファイル選択時の画像読み込み
+// 画像ファイル選択時処理
 imageInput.addEventListener('change', (evt) => {
   const file = evt.target.files[0];
   if (!file) return;
@@ -246,7 +271,7 @@ imageInput.addEventListener('change', (evt) => {
   reader.readAsDataURL(file);
 });
 
-// カメラ起動・停止
+// カメラ起動／停止ボタン
 startCameraBtn.addEventListener('click', async () => {
   if (stream) {
     stopCamera();
@@ -269,7 +294,7 @@ startCameraBtn.addEventListener('click', async () => {
   }
 });
 
-// 写真撮影
+// 写真撮影ボタン
 captureBtn.addEventListener('click', () => {
   if (!stream) return;
 
@@ -293,5 +318,5 @@ captureBtn.addEventListener('click', () => {
 // 推論実行ボタン
 runBtn.addEventListener('click', runInferenceAllModels);
 
-// ページ読み込み時にモデルまとめて読み込みスタート
+// ページ読み込み時にモデルまとめて読み込み開始
 loadAllModels();
