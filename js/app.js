@@ -154,14 +154,12 @@ async function runInferenceWithModel(model, img, color) {
     let indices = [];
 
     if (boxes.length > 0) {
-      // 【修正箇所】[ymin, xmin, ymax, xmax] のままテンソル化してNMSに渡す
       const boxesTensor = tf.tensor2d(boxes);
       const scoresTensor = tf.tensor1d(scores);
 
       const maxOutputSize = 100;
       const iouThreshold = 0.45;
 
-      // NMS実行
       const selectedIndices = await tf.image.nonMaxSuppressionAsync(
         boxesTensor,
         scoresTensor,
@@ -172,7 +170,6 @@ async function runInferenceWithModel(model, img, color) {
 
       indices = await selectedIndices.data();
 
-      // テンソルの後片付け
       boxesTensor.dispose();
       scoresTensor.dispose();
       selectedIndices.dispose();
@@ -198,7 +195,6 @@ async function runInferenceWithModel(model, img, color) {
       }
     }
 
-    // 後片付け
     squeezed.dispose();
     transposed.dispose();
     rawOutput.dispose();
@@ -280,6 +276,12 @@ startCameraBtn.addEventListener('click', async () => {
     return;
   }
 
+  // 【修正箇所】以前の選択画像をクリアしてCanvasを真っさらにする
+  imgElement = null;
+  runBtn.disabled = true;
+  imageInput.value = ''; // ファイル選択の状態もリセット
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" } },
@@ -312,7 +314,7 @@ captureBtn.addEventListener('click', () => {
   img.src = canvas.toDataURL('image/jpeg');
   img.onload = () => {
     setImageElement(img);
-    resultDiv.textContent = '写真を撮影しました。「推論開始」を押してください。';
+    resultDiv.textContent = '写真を撮影しました。「カウント開始」を押してください。';
     stopCamera();
   };
 });
