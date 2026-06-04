@@ -135,13 +135,14 @@ captureBtn.addEventListener('click', () => {
   };
 });
 
-// 単一モデルに対して推論＋NMS処理し描画
+// 単一モデルに対して推論＋NMS処理し描画（TensorFlow.js）
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
   const origWidth = img.width;
   const origHeight = img.height;
 
+  // スケールとパディング計算（元のまま）
   const scale = Math.min(modelWidth / origWidth, modelHeight / origHeight);
   const nw = Math.floor(origWidth * scale);
   const nh = Math.floor(origHeight * scale);
@@ -157,12 +158,14 @@ async function runInferenceWithModel(model, img, color) {
   let normalized = expanded.div(255.0);
 
   try {
+    // 推論実行
     const outputTensor = await model.executeAsync(normalized);
 
+    // 出力取得とTensor解放（一部配列の可能性に対応）
     let rawOutput;
     if (Array.isArray(outputTensor)) {
       rawOutput = outputTensor[0];
-      outputTensor.forEach(t => { if(t !== rawOutput) t.dispose(); });
+      outputTensor.forEach(t => { if (t !== rawOutput) t.dispose(); });
     } else {
       rawOutput = outputTensor;
     }
@@ -212,7 +215,7 @@ async function runInferenceWithModel(model, img, color) {
       }
     }
 
-    // NMS用にbbox形式変換 [xmin, ymin, width, height]
+    // NMS用にbbox形式を [xmin, ymin, width, height] に変換
     const boxesForNMS = boxes.map(([ymin, xmin, ymax, xmax]) => {
       return [xmin, ymin, xmax - xmin, ymax - ymin];
     });
@@ -245,6 +248,7 @@ async function runInferenceWithModel(model, img, color) {
       const score = scores[i];
       const classId = classIds[i];
 
+      // 座標をオリジナルサイズに戻す
       const realXmin = (xmin - padLeft) / scale;
       const realYmin = (ymin - padTop) / scale;
       const realXmax = (xmax - padLeft) / scale;
@@ -255,13 +259,14 @@ async function runInferenceWithModel(model, img, color) {
 
       if (boxWidth > 0 && boxHeight > 0) {
         ctx.strokeRect(realXmin, realYmin, boxWidth, boxHeight);
-        // 必要ならラベルも描画可能
+        // ラベル描画も必要なら↓
         // ctx.fillText(`${classId} ${(score*100).toFixed(1)}%`, realXmin + 5, realYmin + 18);
       }
 
       results.push({ classId, score });
     }
 
+    // Tensor解放
     boxesTensor.dispose();
     scoresTensor.dispose();
     selectedIndices.dispose();
@@ -273,19 +278,21 @@ async function runInferenceWithModel(model, img, color) {
     return results.length;
 
   } catch (error) {
-    console.error('推論エラー', error);
+    console.error('推論エラー:', error);
+    // 念のためTensor解放
     tf.dispose([inputTensor, resized, padded, expanded, normalized]);
     return 0;
   }
 }
 
-// 複数モデル一括推論のメイン処理
+// 複数モデル一括推論のメイン処理（直列await）
 async function runInferenceAllModels() {
   if (!imgElement || Object.keys(models).length === 0) {
     alert('画像またはモデルがありません。');
     return;
   }
 
+  // 画像クリア＋描画
   canvas.width = imgElement.width;
   canvas.height = imgElement.height;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -295,8 +302,10 @@ async function runInferenceAllModels() {
   let totalDetections = 0;
   let outputText = '';
 
+  // for...of + awaitで完全直列処理
   for (const [name, model] of Object.entries(models)) {
     const color = colors[idx % colors.length];
+    // 各モデルの推論を順に待つ
     const count = await runInferenceWithModel(model, imgElement, color);
     outputText += `${name} 検出数: ${count}\n`;
     totalDetections += count;
