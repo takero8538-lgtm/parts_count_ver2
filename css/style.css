@@ -51,11 +51,11 @@ input[type="file"] {
 }
 
 /* ==========================================
-   ボタンスタイル（統一感を持たせたコンパクトサイズ）
+   ボタンスタイル
    ========================================== */
 button, .custom-file-btn {
   font-size: 0.9rem;
-  padding: 12px 4px; /* 押しやすさを保ちつつ文字が溢れないバランス */
+  padding: 12px 4px;
   border: none;
   border-radius: 6px;
   font-weight: bold;
@@ -68,7 +68,6 @@ button, .custom-file-btn {
   transition: background-color 0.2s, opacity 0.2s;
 }
 
-/* 各ボタンの色分け（役割ごとに直感的に識別可能） */
 .custom-file-btn {
   background-color: #e2e8f0;
   color: #333;
@@ -85,15 +84,13 @@ button, .custom-file-btn {
   color: #ffffff;
 }
 
-/* 右下に収まった「カウント開始」ボタン */
 #runBtn {
   background-color: #00539CFF;
   color: #ffffff;
   font-size: 0.95rem;
-  border: 2px solid #004078; /* 少し特別感を出すための枠線 */
+  border: 2px solid #004078;
 }
 
-/* ボタンが非活性（disabled）のとき */
 button:disabled {
   background-color: #cbd5e1 !important;
   color: #94a3b8 !important;
@@ -106,7 +103,26 @@ button:active:not(:disabled) {
 }
 
 /* ==========================================
-   映像・キャンバス・結果表示
+   結果表示（画像の上に配置されるため余白を調整）
+   ========================================== */
+#result {
+  margin-bottom: 12px; /* 👈 画像との間に隙間を作る */
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: #00539CFF;
+  white-space: pre-wrap;
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+#result:empty {
+  display: none;
+}
+
+/* ==========================================
+   映像・キャンバス表示
    ========================================== */
 video {
   width: 100%;
@@ -123,23 +139,6 @@ canvas {
   max-width: 100%;
   height: auto;
   display: block;
-  margin-top: 4px;
   border-radius: 6px;
   background-color: #000;
-}
-
-#result {
-  margin-top: 12px;
-  font-weight: bold;
-  font-size: 1.05rem;
-  color: #00539CFF;
-  white-space: pre-wrap;
-  background: #ffffff;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
-
-#result:empty {
-  display: none;
 }
