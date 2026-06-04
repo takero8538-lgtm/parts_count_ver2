@@ -66,7 +66,7 @@ async function loadAllModels() {
   }
 }
 
-// 各モデルで推論して結果を描画（矩形のみ、ラベルなし）
+// 各モデルで推論して結果を描画（NMS適用済み、ラベルなし）
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
@@ -139,12 +139,26 @@ async function runInferenceWithModel(model, img, color) {
       }
     }
 
-    let count = boxes.length;
+    // 非最大抑制（NMS）用にboxesを[ xmin, ymin, width, height ]に変換
+    const boxesForNMS = boxes.map(([ymin, xmin, ymax, xmax]) => {
+      return [xmin, ymin, xmax - xmin, ymax - ymin];
+    });
+
+    const boxesTensor = tf.tensor2d(boxesForNMS);
+    const scoresTensor = tf.tensor1d(scores);
+
+    const maxOutputSize = 50;    // 最大検出ボックス数
+    const iouThreshold = 0.45;   // IOUの閾値
+    const selectedIndices = await tf.image.nonMaxSuppressionAsync(
+      boxesTensor, scoresTensor, maxOutputSize, iouThreshold, confThreshold
+    );
+
+    const indices = await selectedIndices.data();
 
     ctx.lineWidth = 2;
     ctx.strokeStyle = color;
 
-    for (let i = 0; i < count; i++) {
+    for (const i of indices) {
       const [ymin, xmin, ymax, xmax] = boxes[i];
 
       const realXmin = (xmin - padLeft) / scale;
@@ -159,6 +173,12 @@ async function runInferenceWithModel(model, img, color) {
         ctx.strokeRect(realXmin, realYmin, boxWidth, boxHeight);
       }
     }
+
+    const count = indices.length;
+
+    boxesTensor.dispose();
+    scoresTensor.dispose();
+    selectedIndices.dispose();
 
     squeezed.dispose();
     transposed.dispose();
