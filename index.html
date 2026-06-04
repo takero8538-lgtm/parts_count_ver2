@@ -15,21 +15,18 @@
 
   <div class="upload-area">
     <div class="file-input-wrapper">
-      <div class="custom-file-btn">📁 フォルダから画像を選ぶ</div>
+      <div class="custom-file-btn">📁 画像を選ぶ</div>
       <input type="file" id="imageInput" accept="image/*" />
     </div>
     
-    <button id="startCameraBtn">📸 カメラを起動</button>
+    <button id="startCameraBtn">📸 カメラ起動</button>
+    
     <button id="captureBtn" disabled>🎯 写真を撮る</button>
+
+    <button id="runBtn" disabled>🚀 カウント開始</button>
   </div>
 
-  <div class="action-area">
-    <button id="runBtn" disabled>カウント開始</button>
-  </div>
-
-  <br />
-
-  <video id="video" autoplay playsinline style="display: none; width: 100%; max-width: 640px; background: #000; margin-bottom: 15px;"></video>
+  <video id="video" autoplay playsinline style="display: none; width: 100%; max-width: 640px; background: #000; margin-bottom: 12px;"></video>
 
   <canvas id="canvas"></canvas>
 
