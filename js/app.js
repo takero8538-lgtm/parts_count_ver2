@@ -15,11 +15,24 @@ const startCameraBtn = document.getElementById('startCameraBtn');
 const captureBtn = document.getElementById('captureBtn');
 const video = document.getElementById('video');
 
+const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan'];
+
 let models = {};       // { モデル名: tf.GraphModel }
 let imgElement = null;
-let stream = null;     // カメラ映像のストリーム保持用
+let stream = null;     // カメラ映像ストリーム
 
-// models_list.json からモデルの一覧とパスを動的読み込みする関数
+// 共通：画像設定後のCanvas初期化＆runBtn有効化更新
+function setImageElement(img) {
+  imgElement = img;
+  canvas.width = img.width;
+  canvas.height = img.height;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+  runBtn.disabled = !(Object.keys(models).length > 0 && imgElement != null);
+  resultDiv.textContent = '';
+}
+
+// モデルリスト読み込み
 async function loadModelList() {
   try {
     const res = await fetch('models_list.json');
@@ -36,21 +49,20 @@ async function loadModelList() {
   }
 }
 
-// 複数モデルをまとめて読み込む関数
+// 複数モデルをまとめて読み込み
 async function loadAllModels() {
   const modelList = await loadModelList();
 
   resultDiv.textContent = 'モデルを読み込み中...';
   runBtn.disabled = true;
-
   models = {};
+
   for (const m of modelList) {
     try {
       const model = await tf.loadGraphModel(m.path + 'model.json');
       models[m.name] = model;
       console.log(`${m.name} 読み込み成功`);
     } catch (e) {
-      // フォルダやファイルが無い場合はスキップして続行
       console.warn(`${m.name} の読み込みをスキップ（${e.message}）`);
     }
   }
@@ -66,7 +78,7 @@ async function loadAllModels() {
   }
 }
 
-// 各モデルで推論して結果を描画（矩形のみ、ラベルなし）
+// 単一モデルで推論＆結果描画（矩形のみ）
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
@@ -173,7 +185,7 @@ async function runInferenceWithModel(model, img, color) {
   }
 }
 
-// 複数モデルで一括推論し、検出が1件以上のモデルのみ検出数を表示
+// 複数モデル一括推論、検出数が1件以上のモデルのみ結果表示
 async function runInferenceAllModels() {
   if (!imgElement || Object.keys(models).length === 0) {
     alert('画像またはモデルがありません。');
@@ -184,8 +196,6 @@ async function runInferenceAllModels() {
   canvas.height = imgElement.height;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(imgElement, 0, 0);
-
-  const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan'];
 
   let resultText = '';
   let idx = 0;
@@ -208,7 +218,7 @@ async function runInferenceAllModels() {
   resultDiv.textContent = resultText;
 }
 
-// カメラ停止処理
+// カメラ停止
 function stopCamera() {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
@@ -220,7 +230,7 @@ function stopCamera() {
   captureBtn.disabled = true;
 }
 
-// ファイル選択イベント
+// ファイル選択時の画像読み込み
 imageInput.addEventListener('change', (evt) => {
   const file = evt.target.files[0];
   if (!file) return;
@@ -230,22 +240,13 @@ imageInput.addEventListener('change', (evt) => {
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
-    img.onload = () => {
-      imgElement = img;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-
-      runBtn.disabled = !(Object.keys(models).length > 0 && imgElement != null);
-      resultDiv.textContent = '';
-    };
+    img.onload = () => setImageElement(img);
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 });
 
-// カメラ起動ボタン
+// カメラ起動・停止
 startCameraBtn.addEventListener('click', async () => {
   if (stream) {
     stopCamera();
@@ -254,7 +255,7 @@ startCameraBtn.addEventListener('click', async () => {
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }},
+      video: { facingMode: { ideal: "environment" } },
       audio: false,
     });
     video.srcObject = stream;
@@ -268,7 +269,7 @@ startCameraBtn.addEventListener('click', async () => {
   }
 });
 
-// 写真撮影ボタン
+// 写真撮影
 captureBtn.addEventListener('click', () => {
   if (!stream) return;
 
@@ -283,10 +284,8 @@ captureBtn.addEventListener('click', () => {
   const img = new Image();
   img.src = canvas.toDataURL('image/jpeg');
   img.onload = () => {
-    imgElement = img;
-    runBtn.disabled = !(Object.keys(models).length > 0 && imgElement != null);
+    setImageElement(img);
     resultDiv.textContent = '写真を撮影しました。「推論開始」を押してください。';
-
     stopCamera();
   };
 });
@@ -294,5 +293,5 @@ captureBtn.addEventListener('click', () => {
 // 推論実行ボタン
 runBtn.addEventListener('click', runInferenceAllModels);
 
-// ページ読み込み時にモデル一括読み込み開始
+// ページ読み込み時にモデルまとめて読み込みスタート
 loadAllModels();
