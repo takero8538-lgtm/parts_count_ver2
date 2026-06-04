@@ -10,35 +10,34 @@
 
 body {
   font-family: Arial, sans-serif;
-  padding: 16px; /* スマホ用に余白を少し詰めました */
+  padding: 12px; 
   background-color: #f8f8f8;
   color: #333;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 h1 {
   color: #00539CFF;
-  font-size: 1.6rem;
-  margin-bottom: 20px;
-  text-align: center; /* スマホで見やすいよう中央寄せに */
+  font-size: 1.4rem;
+  margin-bottom: 12px;
+  text-align: center;
 }
 
 /* ==========================================
-   入力・ボタンエリアのスマホ最適化
+   ボタンエリアの2×2グリッド化
    ========================================== */
-/* 縦並びにして、スマホの横幅いっぱいに広げるための外枠 */
-.upload-area, .action-area {
-  display: flex;
-  flex-direction: column;
-  gap: 12px; /* 要素同士の隙間 */
-  margin-bottom: 16px;
+.upload-area {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 横に2等分 */
+  gap: 8px;                       /* ボタン同士の隙間 */
+  margin-bottom: 12px;
 }
 
-/* ファイル入力を隠してカスタムボタン化するためのラッパー */
+/* ファイル選択のラッパー制御 */
 .file-input-wrapper {
   position: relative;
   overflow: hidden;
-  display: inline-block;
+  display: block;
   width: 100%;
 }
 
@@ -51,55 +50,57 @@ input[type="file"] {
   cursor: pointer;
 }
 
-/* 元のデザインをベースにした共通ボタンスタイル */
+/* ==========================================
+   ボタンスタイル（統一感を持たせたコンパクトサイズ）
+   ========================================== */
 button, .custom-file-btn {
-  font-size: 1rem;
-  padding: 12px 16px; /* 👈 指で押しやすいように縦幅を広げました */
+  font-size: 0.9rem;
+  padding: 12px 4px; /* 押しやすさを保ちつつ文字が溢れないバランス */
   border: none;
   border-radius: 6px;
-  background-color: #00539CFF; /* 元のテーマカラー */
-  color: #ffffff;
   font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%; /* スマホ画面いっぱいに広げる */
+  width: 100%;
+  height: 100%;
   transition: background-color 0.2s, opacity 0.2s;
 }
 
-/* フォルダから選ぶボタンだけ背景色をマイルドに */
+/* 各ボタンの色分け（役割ごとに直感的に識別可能） */
 .custom-file-btn {
   background-color: #e2e8f0;
   color: #333;
   font-weight: normal;
 }
 
-/* カメラ起動ボタンの背景色（区別しやすく） */
 #startCameraBtn {
   background-color: #334155;
+  color: #ffffff;
 }
 
-/* 写真を撮るボタンの背景色 */
 #captureBtn {
   background-color: #db2777;
+  color: #ffffff;
 }
 
-/* カウント開始ボタン（元コードのスタイルを継承） */
+/* 右下に収まった「カウント開始」ボタン */
 #runBtn {
   background-color: #00539CFF;
-  font-size: 1.1rem;
-  padding: 14px 20px;
+  color: #ffffff;
+  font-size: 0.95rem;
+  border: 2px solid #004078; /* 少し特別感を出すための枠線 */
 }
 
 /* ボタンが非活性（disabled）のとき */
 button:disabled {
-  background-color: #ccc !important;
-  color: #666 !important;
+  background-color: #cbd5e1 !important;
+  color: #94a3b8 !important;
+  border-color: transparent !important;
   cursor: not-allowed;
 }
 
-/* タップした瞬間のフィードバック */
 button:active:not(:disabled) {
   opacity: 0.8;
 }
@@ -107,37 +108,34 @@ button:active:not(:disabled) {
 /* ==========================================
    映像・キャンバス・結果表示
    ========================================== */
-/* カメラ映像ストリーム */
 video {
   width: 100%;
   height: auto;
   display: block;
   border-radius: 6px;
   background-color: #000;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
-/* 元の枠線を残しつつ、スマホの幅からはみ出さないように設定 */
 canvas {
   border: 1px solid #ccc;
-  width: 100%;      /* 👈 横幅いっぱいにフィット */
+  width: 100%;
   max-width: 100%;
   height: auto;
   display: block;
-  margin-top: 20px;
+  margin-top: 4px;
   border-radius: 6px;
   background-color: #000;
 }
 
-/* 元の結果表示のカラーを継承 */
 #result {
-  margin-top: 15px;
+  margin-top: 12px;
   font-weight: bold;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: #00539CFF;
   white-space: pre-wrap;
   background: #ffffff;
-  padding: 12px;
+  padding: 10px;
   border-radius: 6px;
   border: 1px solid #e5e7eb;
 }
