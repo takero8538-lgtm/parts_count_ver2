@@ -21,7 +21,7 @@ let models = {};       // { モデル名: tf.GraphModel }
 let imgElement = null;
 let stream = null;     // カメラ映像ストリーム保持用
 
-// 共通：画像設定後のCanvas初期化＆runBtn有効化更新
+// 画像設定、Canvasサイズ調整＆描画、実行ボタン活性化
 function setImageElement(img) {
   imgElement = img;
   canvas.width = img.width;
@@ -32,7 +32,7 @@ function setImageElement(img) {
   resultDiv.textContent = '';
 }
 
-// models_list.json からモデルリストを取得
+// models_list.json からモデルリスト読み込み
 async function loadModelList() {
   try {
     const res = await fetch('models_list.json');
@@ -49,7 +49,7 @@ async function loadModelList() {
   }
 }
 
-// 複数モデルを一括読み込み
+// 複数モデル読み込み
 async function loadAllModels() {
   const modelList = await loadModelList();
 
@@ -78,7 +78,7 @@ async function loadAllModels() {
   }
 }
 
-// 単一モデル推論＆NMS処理後の描画
+// 単一モデル推論＋NMS＋描画
 async function runInferenceWithModel(model, img, color) {
   const modelWidth = 640;
   const modelHeight = 640;
@@ -124,7 +124,7 @@ async function runInferenceWithModel(model, img, color) {
 
     const confThreshold = 0.1;
 
-    // 推論結果からボックスとスコアを抽出
+    // 推論結果からボックスとスコア抽出
     for (let i = 0; i < numBoxes; i++) {
       const offset = i * numAttributes;
 
@@ -151,7 +151,7 @@ async function runInferenceWithModel(model, img, color) {
       }
     }
 
-    // NMS用に boxes → [xmin, ymin, width, height] に変換
+    // NMS用に [xmin, ymin, width, height] に変換
     const boxesForNMS = boxes.map(([ymin, xmin, ymax, xmax]) => {
       return [xmin, ymin, xmax - xmin, ymax - ymin];
     });
@@ -162,7 +162,6 @@ async function runInferenceWithModel(model, img, color) {
     const maxOutputSize = 100;
     const iouThreshold = 0.45;
 
-    // NMS実行
     const selectedIndices = await tf.image.nonMaxSuppressionAsync(
       boxesTensor,
       scoresTensor,
@@ -176,7 +175,7 @@ async function runInferenceWithModel(model, img, color) {
     ctx.lineWidth = 2;
     ctx.strokeStyle = color;
 
-    // NMSで選ばれたボックスのみ描画
+    // NMS後のボックスだけ描画
     for (const i of indices) {
       const [ymin, xmin, ymax, xmax] = boxes[i];
 
@@ -193,7 +192,7 @@ async function runInferenceWithModel(model, img, color) {
       }
     }
 
-    // 後片付け
+    // Tensor解放
     boxesTensor.dispose();
     scoresTensor.dispose();
     selectedIndices.dispose();
@@ -210,7 +209,7 @@ async function runInferenceWithModel(model, img, color) {
   }
 }
 
-// 複数モデルを直列で推論し、検出数が1件以上のモデルのみ表示
+// 複数モデルを1つずつ推論し、モデルごとにCanvasをクリア＆元画像を再描画して結果を描く
 async function runInferenceAllModels() {
   if (!imgElement || Object.keys(models).length === 0) {
     alert('画像またはモデルがありません。');
@@ -219,12 +218,14 @@ async function runInferenceAllModels() {
 
   canvas.width = imgElement.width;
   canvas.height = imgElement.height;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(imgElement, 0, 0);
 
   let resultText = '';
   let idx = 0;
   for (const [name, model] of Object.entries(models)) {
+    // ここで毎回Canvasをクリア＆元画像描画してから推論開始
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(imgElement, 0, 0);
+
     const color = colors[idx % colors.length];
     const res = await runInferenceWithModel(model, imgElement, color);
 
