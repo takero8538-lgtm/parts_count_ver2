@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>部品カウント</title>
+  <title>数える君 AI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   
   <link rel="stylesheet" href="css/style.css" />
@@ -11,7 +11,7 @@
   <script src="js/tf.min.js"></script>
 </head>
 <body>
-  <h1>カウンター</h1>
+  <h1>数える君 AI</h1>
 
   <div class="upload-area">
     <div class="file-input-wrapper">
@@ -26,11 +26,11 @@
     <button id="runBtn" disabled>🚀 カウント開始</button>
   </div>
 
+  <div id="result"></div>
+
   <video id="video" autoplay playsinline style="display: none; width: 100%; max-width: 640px; background: #000; margin-bottom: 12px;"></video>
 
   <canvas id="canvas"></canvas>
-
-  <div id="result"></div>
 
   <script src="js/app.js"></script>
 </body>
