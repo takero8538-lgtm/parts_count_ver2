@@ -122,7 +122,7 @@ async function runInferenceWithModel(model, img, color) {
     const boxes = [];
     const scores = [];
 
-    const confThreshold = 0.2;
+    const confThreshold = 0.15;
 
     // 推論結果からボックスとスコアを抽出
     for (let i = 0; i < numBoxes; i++) {
