@@ -157,7 +157,7 @@ async function runInferenceWithModel(model, img, color) {
       const boxesTensor = tf.tensor2d(boxes);
       const scoresTensor = tf.tensor1d(scores);
 
-      const maxOutputSize = 100;
+      const maxOutputSize = 300;
       const iouThreshold = 0.45;
 
       const selectedIndices = await tf.image.nonMaxSuppressionAsync(
